@@ -1,38 +1,73 @@
-from kafka import KafkaProducer
-import requests
 import json
 import time
+import random
+import requests
+from kafka import KafkaProducer
+from datetime import datetime
 
 # Kafka Configuration
-TOPIC = 'currency_exchange'
+TOPIC = 'forex_rates'
 BROKER = 'localhost:9092'
 
-# API Configuration
-API_KEY = 'f94e833a26fc2e1026f62c43b6f04c6a'  # Replace with your API key
-API_URL = f"http://data.fixer.io/api/latest?access_key={API_KEY}"  # Example: Fixer API
-
-# Kafka Producer Setup
+# Initialize Kafka Producer
 producer = KafkaProducer(
     bootstrap_servers=[BROKER],
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON serialization
+    value_serializer=lambda x: json.dumps(x).encode('utf-8')
 )
 
-def fetch_and_stream():
-    while True:
-        try:
-            response = requests.get(API_URL)
-            if response.status_code == 200:
-                data = response.json()
-                print("Streaming data to Kafka:", data)
-                producer.send(TOPIC, value=data)
-                producer.flush()
-            else:
-                print("Error fetching data:", response.status_code)
-            time.sleep(10)  # Fetch data every 10 seconds
-        except Exception as e:
-            print("Error:", e)
-            time.sleep(10)
+# Forex Pairs and INR Exchange Rates
+forex_pairs = ["EUR/USD", "USD/JPY", "GBP/USD", "USD/CAD", "EUR/GBP", "USD/CHF"]
+inr_pairs = ["USD/INR", "EUR/INR", "GBP/INR", "JPY/INR", "CAD/INR", "CHF/INR"]
 
-if __name__ == "__main__":
-    print("Starting to stream data into Kafka...")
-    fetch_and_stream()
+# Function to fetch exchange rates
+def fetch_forex_data():
+    api_url = "https://api.exchangerate-api.com/v4/latest/USD"
+    try:
+        response = requests.get(api_url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+
+        rates = {}
+        for pair in forex_pairs + inr_pairs:
+            base, quote = pair.split("/")
+            if base == "USD":
+                rate = data["rates"].get(quote, 0)
+            elif base in data["rates"]:
+                usd_value = data["rates"].get(base, 1)
+                rate = data["rates"].get(quote, 0) / usd_value
+            else:
+                rate = None
+
+            # Apply ±2% fluctuation
+            if rate:
+                rate *= random.uniform(0.98, 1.02)  # Adding volatility
+
+            rates[pair] = round(rate, 4) if rate else None
+
+        return rates
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Error fetching exchange rates: {e}")
+        return {pair: None for pair in forex_pairs + inr_pairs}
+
+# Function to fetch oil price (Simulated with fluctuations)
+def fetch_oil_price():
+    base_price = 75.0  # Base oil price in USD per barrel
+    fluctuation = random.uniform(-1, 1)  # ±1 USD fluctuation
+    return round(base_price + fluctuation, 2)
+
+print("🔄 Streaming Forex and INR Exchange Rates to Kafka...")
+
+while True:
+    rates = fetch_forex_data()
+    oil_price = fetch_oil_price()
+
+    message = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "rates": rates,
+        "oil_price": oil_price
+    }
+
+    producer.send(TOPIC, value=message)
+    print(f"📤 Sent: {message}")
+
+    time.sleep(5)  # Adjust frequency as needed
