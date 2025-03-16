@@ -1,4 +1,3 @@
-```python
 import json
 import time
 import pandas as pd
@@ -21,7 +20,7 @@ consumer = KafkaConsumer(
     value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
-# Store Data
+ 
 window_size = 50  # Number of recent data points to display
 currencies = ["USD", "EUR", "GBP", "JPY"]
 data_store = {currency: deque(maxlen=window_size) for currency in currencies}
@@ -55,7 +54,7 @@ for message in consumer:
     # Volatility Calculation
     df['volatility'] = df.mean(axis=1).rolling(window=5).std()
 
-    # **1️⃣ Exchange Rate Trends**
+    # 1 Exchange Rate Trends
     st.subheader("📊 Exchange Rate Trends")
     fig, axs = plt.subplots(len(currencies), 1, figsize=(10, 8), sharex=True)
 
@@ -70,7 +69,7 @@ for message in consumer:
     plt.tight_layout()
     st.pyplot(fig)
 
-    # **2️⃣ Latest Exchange Rates**
+    # 2 Latest Exchange Rates
     st.subheader("📊 Latest Exchange Rates")
     latest_rates = {currency: df[currency].iloc[-1] for currency in currencies}
     fig, ax = plt.subplots(figsize=(8, 4))
@@ -79,7 +78,7 @@ for message in consumer:
     ax.set_title("Latest INR Exchange Rates")
     st.pyplot(fig)
 
-    # **3️⃣ Moving Average for Trend Analysis**
+    # Moving Average for Trend Analysis
     st.subheader("📈 Moving Average Analysis")
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(df.index, df['SMA_5'], label='5-Point SMA', linestyle="--", color='orange')
@@ -111,7 +110,7 @@ for message in consumer:
 
     st.table(pd.DataFrame(rate_summary))
 
-    # Sleep to allow smooth updates
+ 
     time.sleep(1)
-```
+ 
 
